@@ -394,6 +394,19 @@ app.post('/api/surveys', async (req, res) => {
     try {
         const { business, currentProcurement, industryData, meta } = req.body;
 
+        // Validate required data
+        if (!business || !business.name) {
+            return res.status(400).json({
+                success: false,
+                error: 'Business name is required'
+            });
+        }
+
+        // Generate survey ID
+        const timestamp = Date.now().toString(36).toUpperCase();
+        const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const surveyId = `SRV-${timestamp}-${random}`;
+
         // Get industry ID from key
         let industryId = null;
         if (business.industry) {
@@ -406,34 +419,37 @@ app.post('/api/surveys', async (req, res) => {
         }
 
         const surveyData = {
+            survey_id: surveyId,
             business_name: business.name,
             industry_id: industryId,
-            sub_category: business.subCategory,
-            owner_name: business.ownerName,
-            contact_phone: business.contactPhone,
-            contact_email: business.contactEmail,
-            city: business.address?.city,
-            state: business.address?.state,
-            pincode: business.address?.pincode,
-            street: business.address?.street,
+            sub_category: business.subCategory || null,
+            owner_name: business.ownerName || null,
+            contact_phone: business.contactPhone || null,
+            contact_email: business.contactEmail || null,
+            city: business.address?.city || null,
+            state: business.address?.state || null,
+            pincode: business.address?.pincode || null,
+            street: business.address?.street || null,
             location_source: business.locationSource || 'not_provided',
-            years_in_operation: business.yearsInOperation,
-            employees_count: business.employeesCount,
-            current_method: currentProcurement?.method,
-            monthly_budget_min: currentProcurement?.monthlyBudget?.min,
-            monthly_budget_max: currentProcurement?.monthlyBudget?.max,
-            preferred_credit_period: currentProcurement?.preferredCreditPeriod,
-            pain_points: currentProcurement?.painPoints,
-            willing_to_switch: currentProcurement?.willingToSwitch,
+            years_in_operation: business.yearsInOperation || null,
+            employees_count: business.employeeCount || business.employeesCount || null,
+            current_method: currentProcurement?.method || null,
+            monthly_budget_min: currentProcurement?.monthlyBudget?.min || null,
+            monthly_budget_max: currentProcurement?.monthlyBudget?.max || null,
+            preferred_credit_period: currentProcurement?.preferredCreditPeriod || null,
+            pain_points: currentProcurement?.painPoints || null,
+            willing_to_switch: currentProcurement?.willingToSwitch || null,
             industry_data: industryData || {},
             source: meta?.source || 'website',
             status: 'submitted'
         };
 
         // Handle location if provided
-        if (business.location?.coordinates) {
+        if (business.location?.coordinates && Array.isArray(business.location.coordinates)) {
             const [lng, lat] = business.location.coordinates;
-            surveyData.location = `POINT(${lng} ${lat})`;
+            if (lng && lat) {
+                surveyData.location = `POINT(${lng} ${lat})`;
+            }
         }
 
         const { data: survey, error } = await supabase
@@ -442,7 +458,10 @@ app.post('/api/surveys', async (req, res) => {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('Survey insert error:', error);
+            throw error;
+        }
 
         res.status(201).json({
             success: true,
@@ -452,6 +471,7 @@ app.post('/api/surveys', async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('Survey submission error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
