@@ -312,7 +312,7 @@ app.get('/api/users', authenticate, async (req, res) => {
     try {
         const { data: users, error } = await supabase
             .from('users')
-            .select('id, email, name, role, is_active, last_login, created_at')
+            .select('id, email, name, role, is_active, last_active, created_at')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
