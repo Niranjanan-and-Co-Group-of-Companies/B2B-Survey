@@ -759,6 +759,195 @@ app.put('/api/surveys/:id/status', authenticate, async (req, res) => {
 });
 
 // ============================================
+// PER-QUESTION ANALYTICS
+// ============================================
+app.get('/api/analytics/per-question', authenticate, async (req, res) => {
+    try {
+        // Get all industry questions
+        const { data: questions, error: qError } = await supabase
+            .from('industry_questions')
+            .select(`
+                id,
+                field_key,
+                label,
+                field_type,
+                options,
+                industry_id,
+                industries (display_name)
+            `)
+            .order('display_order');
+
+        if (qError) throw qError;
+
+        // Get all surveys with industry data
+        const { data: surveys, error: sError } = await supabase
+            .from('surveys')
+            .select('industry_data, industry_id');
+
+        if (sError) throw sError;
+
+        // Analyze each question
+        const analysis = questions?.map(q => {
+            // Find surveys that answer this question
+            const relevantSurveys = surveys?.filter(s =>
+                s.industry_id === q.industry_id &&
+                s.industry_data &&
+                s.industry_data[q.field_key] !== undefined
+            ) || [];
+
+            const responses = relevantSurveys.length;
+            const values = relevantSurveys.map(s => s.industry_data[q.field_key]);
+
+            let data = [];
+            let stats = null;
+
+            if (q.field_type === 'number') {
+                // Calculate number stats
+                const numericValues = values.filter(v => typeof v === 'number');
+                if (numericValues.length > 0) {
+                    stats = {
+                        avg: Math.round(numericValues.reduce((a, b) => a + b, 0) / numericValues.length),
+                        min: Math.min(...numericValues),
+                        max: Math.max(...numericValues)
+                    };
+                    // Create histogram buckets
+                    const range = stats.max - stats.min;
+                    const bucketSize = range > 0 ? Math.ceil(range / 5) : 1;
+                    const buckets = {};
+                    numericValues.forEach(v => {
+                        const bucket = Math.floor((v - stats.min) / bucketSize) * bucketSize + stats.min;
+                        const label = `${bucket}-${bucket + bucketSize}`;
+                        buckets[label] = (buckets[label] || 0) + 1;
+                    });
+                    data = Object.entries(buckets).map(([label, value]) => ({ label, value }));
+                }
+            } else if (q.field_type === 'select' || q.field_type === 'boolean') {
+                // Count occurrences
+                const counts = {};
+                values.forEach(v => {
+                    const label = String(v);
+                    counts[label] = (counts[label] || 0) + 1;
+                });
+                data = Object.entries(counts).map(([label, value]) => ({ label, value }));
+            } else if (q.field_type === 'multiselect') {
+                // Count each selection
+                const counts = {};
+                values.forEach(v => {
+                    if (Array.isArray(v)) {
+                        v.forEach(item => {
+                            counts[item] = (counts[item] || 0) + 1;
+                        });
+                    }
+                });
+                data = Object.entries(counts).map(([label, value]) => ({ label, value }));
+            }
+
+            return {
+                questionKey: q.field_key,
+                questionText: q.label,
+                questionType: q.field_type,
+                responses,
+                data,
+                stats
+            };
+        }).filter(q => q.responses > 0) || [];
+
+        res.json({ success: true, data: analysis });
+    } catch (error) {
+        console.error('Per-question analytics error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
+// PHOTO UPLOAD
+// ============================================
+app.post('/api/upload/photo', async (req, res) => {
+    try {
+        const { photo, surveyId, filename } = req.body;
+
+        if (!photo || !surveyId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Photo and surveyId are required'
+            });
+        }
+
+        // Photo is base64 encoded
+        const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        const fileExt = filename?.split('.').pop() || 'jpg';
+        const filePath = `surveys/${surveyId}/${Date.now()}.${fileExt}`;
+
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+            .from('survey-photos')
+            .upload(filePath, buffer, {
+                contentType: `image/${fileExt}`,
+                upsert: false
+            });
+
+        if (error) {
+            // If bucket doesn't exist, return helpful error
+            if (error.message.includes('bucket')) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Photo storage not configured. Create a bucket named "survey-photos" in Supabase Storage.'
+                });
+            }
+            throw error;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+            .from('survey-photos')
+            .getPublicUrl(filePath);
+
+        res.json({
+            success: true,
+            data: {
+                path: filePath,
+                url: publicUrl
+            }
+        });
+    } catch (error) {
+        console.error('Photo upload error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get photos for a survey
+app.get('/api/surveys/:id/photos', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // List files in the survey folder
+        const { data, error } = await supabase.storage
+            .from('survey-photos')
+            .list(`surveys/${id}`);
+
+        if (error) throw error;
+
+        // Get public URLs
+        const photos = data?.map(file => {
+            const { data: { publicUrl } } = supabase.storage
+                .from('survey-photos')
+                .getPublicUrl(`surveys/${id}/${file.name}`);
+            return {
+                name: file.name,
+                url: publicUrl,
+                createdAt: file.created_at
+            };
+        }) || [];
+
+        res.json({ success: true, data: photos });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 const PORT = process.env.PORT || 5000;
