@@ -213,8 +213,45 @@ app.delete('/api/industries/:id', authenticate, async (req, res) => {
 // INDUSTRY QUESTIONS ROUTES
 // ============================================
 
-// Get questions for an industry
-app.get('/api/industries/:id/questions', authenticate, async (req, res) => {
+// Get questions for an industry by industry_key (PUBLIC - for survey form)
+app.get('/api/industries/:key/questions', async (req, res) => {
+    try {
+        // First get the industry by key
+        const { data: industry, error: indError } = await supabase
+            .from('industries')
+            .select('id')
+            .eq('industry_key', req.params.key)
+            .single();
+
+        if (indError || !industry) {
+            // Try by ID if not found by key
+            const { data: questions, error } = await supabase
+                .from('industry_questions')
+                .select('*')
+                .eq('industry_id', req.params.key)
+                .order('display_order');
+
+            if (error) throw error;
+            return res.json({ success: true, data: questions || [] });
+        }
+
+        // Get questions for this industry
+        const { data: questions, error } = await supabase
+            .from('industry_questions')
+            .select('*')
+            .eq('industry_id', industry.id)
+            .order('display_order');
+
+        if (error) throw error;
+        res.json({ success: true, data: questions || [] });
+    } catch (error) {
+        console.error('Error fetching industry questions:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+// Get questions for an industry by ID (ADMIN - requires auth)
+app.get('/api/admin/industries/:id/questions', authenticate, async (req, res) => {
     try {
         const { data: questions, error } = await supabase
             .from('industry_questions')
@@ -233,7 +270,11 @@ app.get('/api/industries/:id/questions', authenticate, async (req, res) => {
 // Add question to industry
 app.post('/api/industries/:id/questions', authenticate, async (req, res) => {
     try {
-        const { question_key, question_text, question_type, options, is_required } = req.body;
+        // Support both old field names (question_*) and new field names (field_*/label) for backwards compatibility
+        const field_key = req.body.field_key || req.body.question_key;
+        const label = req.body.label || req.body.question_text;
+        const field_type = req.body.field_type || req.body.question_type;
+        const { options, is_required, placeholder } = req.body;
 
         // Get max display_order
         const { data: existing } = await supabase
@@ -249,11 +290,12 @@ app.post('/api/industries/:id/questions', authenticate, async (req, res) => {
             .from('industry_questions')
             .insert([{
                 industry_id: req.params.id,
-                question_key,
-                question_text,
-                question_type,
-                options: options || [],
-                is_required,
+                field_key,
+                label,
+                field_type,
+                options: options || null,
+                is_required: is_required || false,
+                placeholder: placeholder || null,
                 display_order
             }])
             .select()
@@ -270,11 +312,15 @@ app.post('/api/industries/:id/questions', authenticate, async (req, res) => {
 // Update question
 app.put('/api/industries/:industryId/questions/:questionId', authenticate, async (req, res) => {
     try {
-        const { question_key, question_text, question_type, options, is_required } = req.body;
+        // Support both old field names (question_*) and new field names (field_*/label) for backwards compatibility
+        const field_key = req.body.field_key || req.body.question_key;
+        const label = req.body.label || req.body.question_text;
+        const field_type = req.body.field_type || req.body.question_type;
+        const { options, is_required, placeholder } = req.body;
 
         const { data: question, error } = await supabase
             .from('industry_questions')
-            .update({ question_key, question_text, question_type, options, is_required })
+            .update({ field_key, label, field_type, options, is_required, placeholder })
             .eq('id', req.params.questionId)
             .select()
             .single();
@@ -854,7 +900,7 @@ app.get('/api/analytics/per-question', authenticate, async (req, res) => {
 });
 
 // ============================================
-// PHOTO UPLOAD
+// PHOTO UPLOAD (Database-based storage)
 // ============================================
 app.post('/api/upload/photo', async (req, res) => {
     try {
@@ -867,42 +913,43 @@ app.post('/api/upload/photo', async (req, res) => {
             });
         }
 
-        // Photo is base64 encoded
-        const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
-        const buffer = Buffer.from(base64Data, 'base64');
+        // Determine content type from base64 header
+        let contentType = 'image/jpeg';
+        const matches = photo.match(/^data:([^;]+);base64,/);
+        if (matches) {
+            contentType = matches[1];
+        }
 
-        const fileExt = filename?.split('.').pop() || 'jpg';
-        const filePath = `surveys/${surveyId}/${Date.now()}.${fileExt}`;
-
-        // Upload to Supabase Storage
-        const { data, error } = await supabase.storage
-            .from('survey-photos')
-            .upload(filePath, buffer, {
-                contentType: `image/${fileExt}`,
-                upsert: false
-            });
+        // Store photo in database
+        const { data, error } = await supabase
+            .from('survey_photos')
+            .insert([{
+                survey_id: surveyId,
+                filename: filename || 'photo.jpg',
+                content_type: contentType,
+                photo_data: photo  // Store the full base64 string including data URI prefix
+            }])
+            .select()
+            .single();
 
         if (error) {
-            // If bucket doesn't exist, return helpful error
-            if (error.message.includes('bucket')) {
+            console.error('Photo storage error:', error);
+
+            // If table doesn't exist, provide helpful error
+            if (error.message.includes('relation') || error.code === '42P01') {
                 return res.status(400).json({
                     success: false,
-                    error: 'Photo storage not configured. Create a bucket named "survey-photos" in Supabase Storage.'
+                    error: 'Photo storage not configured. Run add-survey-photos-table.sql in Supabase.'
                 });
             }
             throw error;
         }
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-            .from('survey-photos')
-            .getPublicUrl(filePath);
-
         res.json({
             success: true,
             data: {
-                path: filePath,
-                url: publicUrl
+                id: data.id,
+                filename: data.filename
             }
         });
     } catch (error) {
@@ -911,32 +958,47 @@ app.post('/api/upload/photo', async (req, res) => {
     }
 });
 
-// Get photos for a survey
+// Get photos for a survey (from database)
 app.get('/api/surveys/:id/photos', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
 
-        // List files in the survey folder
-        const { data, error } = await supabase.storage
-            .from('survey-photos')
-            .list(`surveys/${id}`);
+        // First, get the survey to find the human-readable survey_id
+        const { data: survey, error: surveyError } = await supabase
+            .from('surveys')
+            .select('survey_id')
+            .eq('id', id)
+            .single();
 
-        if (error) throw error;
+        if (surveyError || !survey) {
+            return res.json({ success: true, data: [] });
+        }
 
-        // Get public URLs
-        const photos = data?.map(file => {
-            const { data: { publicUrl } } = supabase.storage
-                .from('survey-photos')
-                .getPublicUrl(`surveys/${id}/${file.name}`);
-            return {
-                name: file.name,
-                url: publicUrl,
-                createdAt: file.created_at
-            };
-        }) || [];
+        const surveyId = survey.survey_id;
 
-        res.json({ success: true, data: photos });
+        // Get photos from database using the human-readable survey_id
+        const { data: photos, error } = await supabase
+            .from('survey_photos')
+            .select('id, filename, content_type, photo_data, created_at')
+            .eq('survey_id', surveyId)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching photos:', error);
+            return res.json({ success: true, data: [] });
+        }
+
+        // Transform photos to return base64 data URLs
+        const formattedPhotos = (photos || []).map(photo => ({
+            id: photo.id,
+            name: photo.filename,
+            url: photo.photo_data,  // This is already a data URI (data:image/xxx;base64,...)
+            createdAt: photo.created_at
+        }));
+
+        res.json({ success: true, data: formattedPhotos });
     } catch (error) {
+        console.error('Error fetching photos:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
