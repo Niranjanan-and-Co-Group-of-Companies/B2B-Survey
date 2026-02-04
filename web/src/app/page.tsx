@@ -18,11 +18,7 @@ export default function Home() {
             </div>
             <span className="font-bold text-xl">B2B Survey</span>
           </div>
-          <div className="flex gap-4">
-            <Link href="/admin/login" className="btn btn-outline border-white/30 text-white hover:bg-white hover:text-[var(--primary)]">
-              Admin Login
-            </Link>
-          </div>
+
         </nav>
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-24 text-center">
