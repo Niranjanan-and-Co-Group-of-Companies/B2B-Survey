@@ -540,92 +540,82 @@ app.get('/api/surveys/:id', authenticate, async (req, res) => {
 // Overview stats - now with direct queries if views don't exist
 app.get('/api/analytics/overview', authenticate, async (req, res) => {
     try {
-        // Try to get from view first
-        let stats = null;
-        try {
-            const { data } = await supabase.from('survey_stats').select('*').single();
-            stats = data;
-        } catch (e) {
-            // View doesn't exist, calculate manually
-        }
+        const { industry, state } = req.query;
 
-        if (!stats) {
-            // Calculate stats directly from surveys table
-            const { count: total } = await supabase.from('surveys').select('*', { count: 'exact', head: true });
+        // Build base query with filters
+        const buildQuery = (baseQuery) => {
+            let query = baseQuery;
+            if (industry) {
+                // Need to join with industries to filter by industry_key
+                query = query.eq('industries.industry_key', industry);
+            }
+            if (state) {
+                query = query.eq('state', state);
+            }
+            return query;
+        };
 
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const { count: todayCount } = await supabase
-                .from('surveys')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', today.toISOString());
+        // Calculate stats directly from surveys table with filters
+        let baseQuery = supabase.from('surveys').select('*, industries!inner(industry_key)', { count: 'exact', head: true });
+        if (industry) baseQuery = baseQuery.eq('industries.industry_key', industry);
+        if (state) baseQuery = baseQuery.eq('state', state);
+        const { count: total } = await baseQuery;
 
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            const { count: weekCount } = await supabase
-                .from('surveys')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', weekAgo.toISOString());
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let todayQuery = supabase.from('surveys').select('*, industries!inner(industry_key)', { count: 'exact', head: true }).gte('created_at', today.toISOString());
+        if (industry) todayQuery = todayQuery.eq('industries.industry_key', industry);
+        if (state) todayQuery = todayQuery.eq('state', state);
+        const { count: todayCount } = await todayQuery;
 
-            const { count: submitted } = await supabase
-                .from('surveys')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'submitted');
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        let weekQuery = supabase.from('surveys').select('*, industries!inner(industry_key)', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString());
+        if (industry) weekQuery = weekQuery.eq('industries.industry_key', industry);
+        if (state) weekQuery = weekQuery.eq('state', state);
+        const { count: weekCount } = await weekQuery;
 
-            const { count: verified } = await supabase
-                .from('surveys')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'verified');
+        let submittedQuery = supabase.from('surveys').select('*, industries!inner(industry_key)', { count: 'exact', head: true }).eq('status', 'submitted');
+        if (industry) submittedQuery = submittedQuery.eq('industries.industry_key', industry);
+        if (state) submittedQuery = submittedQuery.eq('state', state);
+        const { count: submitted } = await submittedQuery;
 
-            const { count: rejected } = await supabase
-                .from('surveys')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'rejected');
+        let verifiedQuery = supabase.from('surveys').select('*, industries!inner(industry_key)', { count: 'exact', head: true }).eq('status', 'verified');
+        if (industry) verifiedQuery = verifiedQuery.eq('industries.industry_key', industry);
+        if (state) verifiedQuery = verifiedQuery.eq('state', state);
+        const { count: verified } = await verifiedQuery;
 
-            const { count: fromWeb } = await supabase
-                .from('surveys')
-                .select('*', { count: 'exact', head: true })
-                .eq('source', 'website');
+        let rejectedQuery = supabase.from('surveys').select('*, industries!inner(industry_key)', { count: 'exact', head: true }).eq('status', 'rejected');
+        if (industry) rejectedQuery = rejectedQuery.eq('industries.industry_key', industry);
+        if (state) rejectedQuery = rejectedQuery.eq('state', state);
+        const { count: rejected } = await rejectedQuery;
 
-            const { count: fromMobile } = await supabase
-                .from('surveys')
-                .select('*', { count: 'exact', head: true })
-                .eq('source', 'mobile_app');
-
-            stats = {
-                total_surveys: total || 0,
-                today: todayCount || 0,
-                this_week: weekCount || 0,
-                this_month: total || 0,
-                pending: submitted || 0,
-                verified: verified || 0,
-                rejected: rejected || 0,
-                from_website: fromWeb || 0,
-                from_mobile: fromMobile || 0
-            };
-        }
+        // Get source counts (without filters for now)
+        const { count: fromWeb } = await supabase.from('surveys').select('*', { count: 'exact', head: true }).eq('source', 'website');
+        const { count: fromMobile } = await supabase.from('surveys').select('*', { count: 'exact', head: true }).eq('source', 'mobile_app');
 
         res.json({
             success: true,
             data: {
                 totals: {
-                    all: stats.total_surveys || 0,
-                    today: stats.today || 0,
-                    thisWeek: stats.this_week || 0,
-                    thisMonth: stats.this_month || 0
+                    all: total || 0,
+                    today: todayCount || 0,
+                    thisWeek: weekCount || 0,
+                    thisMonth: total || 0
                 },
                 byStatus: {
-                    submitted: stats.pending || 0,
-                    verified: stats.verified || 0,
-                    rejected: stats.rejected || 0
+                    submitted: submitted || 0,
+                    verified: verified || 0,
+                    rejected: rejected || 0
                 },
                 bySource: {
-                    website: stats.from_website || 0,
-                    mobile_app: stats.from_mobile || 0
+                    website: fromWeb || 0,
+                    mobile_app: fromMobile || 0
                 }
             }
         });
     } catch (error) {
+        console.error('Analytics overview error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -633,27 +623,22 @@ app.get('/api/analytics/overview', authenticate, async (req, res) => {
 // Industry distribution for charts
 app.get('/api/analytics/by-industry', authenticate, async (req, res) => {
     try {
-        // Try view first, fallback to manual query
-        let data = null;
-        try {
-            const { data: viewData } = await supabase.from('surveys_by_industry').select('*');
-            data = viewData;
-        } catch (e) { }
+        const { state } = req.query;
 
-        if (!data || data.length === 0) {
-            // Manual aggregation
-            const { data: surveys } = await supabase
-                .from('surveys')
-                .select('industry_id, industries(display_name, icon)');
+        // Manual aggregation with optional state filter
+        let query = supabase.from('surveys').select('industry_id, industries(display_name, icon)');
+        if (state) query = query.eq('state', state);
 
-            const counts = {};
-            (surveys || []).forEach(s => {
-                const name = s.industries?.display_name || 'Unknown';
-                counts[name] = (counts[name] || 0) + 1;
-            });
+        const { data: surveys } = await query;
 
-            data = Object.entries(counts).map(([name, count]) => ({ name, count }));
-        }
+        const counts = {};
+        (surveys || []).forEach(s => {
+            const name = s.industries?.display_name || 'Unknown';
+            counts[name] = (counts[name] || 0) + 1;
+        });
+
+        const data = Object.entries(counts).map(([name, count]) => ({ name, count }));
+        data.sort((a, b) => b.count - a.count);
 
         res.json({ success: true, data: data || [] });
     } catch (error) {
@@ -664,14 +649,21 @@ app.get('/api/analytics/by-industry', authenticate, async (req, res) => {
 // Timeline data for line chart (past 30 days)
 app.get('/api/analytics/timeline', authenticate, async (req, res) => {
     try {
+        const { industry, state } = req.query;
+
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const { data: surveys } = await supabase
+        let query = supabase
             .from('surveys')
-            .select('created_at')
+            .select('created_at, industries!inner(industry_key)')
             .gte('created_at', thirtyDaysAgo.toISOString())
             .order('created_at');
+
+        if (industry) query = query.eq('industries.industry_key', industry);
+        if (state) query = query.eq('state', state);
+
+        const { data: surveys } = await query;
 
         // Group by date
         const dailyCounts = {};
@@ -702,21 +694,23 @@ app.get('/api/analytics/timeline', authenticate, async (req, res) => {
 // Location distribution
 app.get('/api/analytics/by-location', authenticate, async (req, res) => {
     try {
-        let data = null;
-        try {
-            const { data: viewData } = await supabase.from('surveys_by_city').select('*');
-            data = viewData;
-        } catch (e) { }
+        const { industry } = req.query;
 
-        if (!data || data.length === 0) {
-            const { data: surveys } = await supabase.from('surveys').select('city, state');
-            const counts = {};
-            (surveys || []).forEach(s => {
-                const city = s.city || 'Unknown';
-                counts[city] = (counts[city] || 0) + 1;
-            });
-            data = Object.entries(counts).map(([city, count]) => ({ city, count }));
-        }
+        // Query with optional industry filter
+        let query = supabase.from('surveys').select('state, industries!inner(industry_key)');
+        if (industry) query = query.eq('industries.industry_key', industry);
+
+        const { data: surveys } = await query;
+
+        // Group by state
+        const counts = {};
+        (surveys || []).forEach(s => {
+            const state = s.state || 'Unknown';
+            counts[state] = (counts[state] || 0) + 1;
+        });
+
+        const data = Object.entries(counts).map(([state, count]) => ({ state, count }));
+        data.sort((a, b) => b.count - a.count);
 
         res.json({ success: true, data: data || [] });
     } catch (error) {
