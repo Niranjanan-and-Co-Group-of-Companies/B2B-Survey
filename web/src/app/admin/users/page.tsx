@@ -46,7 +46,8 @@ export default function UsersPage() {
     const fetchUsers = async () => {
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch("http://localhost:5001/api/users", {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await response.json();
@@ -108,9 +109,12 @@ export default function UsersPage() {
 
         try {
             const token = localStorage.getItem("token");
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
             const url = editingUser
-                ? `http://localhost:5001/api/users/${editingUser.id}`
-                : "http://localhost:5001/api/users";
+                ? `${API_URL}/api/users/${editingUser.id}`
+                : `${API_URL}/api/users`;
+
+            const method = editingUser ? "PUT" : "POST";
 
             const body: Record<string, unknown> = {
                 name: form.name,
@@ -160,7 +164,8 @@ export default function UsersPage() {
     const handleDelete = async (userId: string) => {
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:5001/api/users/${userId}`, {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/users/${userId}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -184,7 +189,8 @@ export default function UsersPage() {
     const toggleUserStatus = async (user: UserData) => {
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:5001/api/users/${user.id}`, {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/users/${user.id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -323,8 +329,8 @@ export default function UsersPage() {
                                     <button
                                         onClick={() => toggleUserStatus(user)}
                                         className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${user.is_active
-                                                ? "bg-green-100 text-green-700"
-                                                : "bg-gray-100 text-gray-700"
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-gray-100 text-gray-700"
                                             }`}
                                     >
                                         {user.is_active ? (

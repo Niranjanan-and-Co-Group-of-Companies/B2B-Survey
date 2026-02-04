@@ -57,7 +57,8 @@ export default function SurveysPage() {
             if (statusFilter !== "all") params.append("status", statusFilter);
             if (sourceFilter !== "all") params.append("source", sourceFilter);
 
-            const response = await fetch(`http://localhost:5001/api/surveys?${params}`, {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/surveys?${params}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await response.json();

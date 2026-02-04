@@ -82,7 +82,8 @@ export default function IndustriesPage() {
 
     const fetchIndustries = async () => {
         try {
-            const response = await fetch("http://localhost:5001/api/industries");
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/industries`);
             const data = await response.json();
             if (data.success) {
                 setIndustries(data.data || []);
@@ -97,8 +98,9 @@ export default function IndustriesPage() {
     const fetchQuestions = async (industryId: string) => {
         try {
             const token = localStorage.getItem("token");
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
             const response = await fetch(
-                `http://localhost:5001/api/industries/${industryId}/questions`,
+                `${API_URL}/api/industries/${industryId}/questions`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             const data = await response.json();
@@ -166,14 +168,16 @@ export default function IndustriesPage() {
         setShowIndustryModal(true);
     };
 
-    const saveIndustry = async () => {
+    const saveIndustry = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         try {
             const token = localStorage.getItem("token");
-            const method = editingIndustry ? "PUT" : "POST";
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
             const url = editingIndustry
-                ? `http://localhost:5001/api/industries/${editingIndustry.id}`
-                : "http://localhost:5001/api/industries";
+                ? `${API_URL}/api/industries/${editingIndustry.id}`
+                : `${API_URL}/api/industries`;
 
+            const method = editingIndustry ? "PUT" : "POST";
             const response = await fetch(url, {
                 method,
                 headers: {
@@ -189,23 +193,8 @@ export default function IndustriesPage() {
             }
         } catch (error) {
             console.error("Error saving industry:", error);
-            // For demo, update locally
-            if (editingIndustry) {
-                setIndustries((prev) =>
-                    prev.map((i) =>
-                        i.id === editingIndustry.id ? { ...i, ...industryForm } : i
-                    )
-                );
-            } else {
-                setIndustries((prev) => [
-                    ...prev,
-                    {
-                        id: Date.now().toString(),
-                        ...industryForm,
-                        sub_categories: [],
-                    },
-                ]);
-            }
+            // Fallback for demo/offline
+            fetchIndustries();
             setShowIndustryModal(false);
         }
     };
@@ -214,7 +203,8 @@ export default function IndustriesPage() {
         if (!confirm("Are you sure you want to delete this industry?")) return;
         try {
             const token = localStorage.getItem("token");
-            await fetch(`http://localhost:5001/api/industries/${id}`, {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            await fetch(`${API_URL}/api/industries/${id}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -257,10 +247,11 @@ export default function IndustriesPage() {
         if (!selectedIndustryId) return;
         try {
             const token = localStorage.getItem("token");
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
             const method = editingQuestion ? "PUT" : "POST";
             const url = editingQuestion
-                ? `http://localhost:5001/api/industries/${selectedIndustryId}/questions/${editingQuestion.id}`
-                : `http://localhost:5001/api/industries/${selectedIndustryId}/questions`;
+                ? `${API_URL}/api/industries/${selectedIndustryId}/questions/${editingQuestion.id}`
+                : `${API_URL}/api/industries/${selectedIndustryId}/questions`;
 
             await fetch(url, {
                 method,
@@ -278,31 +269,17 @@ export default function IndustriesPage() {
             setShowQuestionModal(false);
         } catch (error) {
             console.error("Error saving question:", error);
-            // Update locally for demo
-            const newQuestion = {
-                id: editingQuestion?.id || Date.now().toString(),
-                ...questionForm,
-                options: questionForm.options.filter((o) => o.trim()),
-                display_order: (questions[selectedIndustryId]?.length || 0) + 1,
-            };
-            setQuestions((prev) => ({
-                ...prev,
-                [selectedIndustryId]: editingQuestion
-                    ? prev[selectedIndustryId].map((q) =>
-                        q.id === editingQuestion.id ? newQuestion : q
-                    )
-                    : [...(prev[selectedIndustryId] || []), newQuestion],
-            }));
             setShowQuestionModal(false);
         }
     };
 
-    const deleteQuestion = async (industryId: string, questionId: string) => {
-        if (!confirm("Delete this question?")) return;
+    const deleteQuestion = async (industryId: string, questionId: string) => { // Renamed from handleDeleteQuestion and swapped args to match usage? usage was (industry.id, q.id)
+        if (!confirm("Are you sure?")) return;
         try {
             const token = localStorage.getItem("token");
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
             await fetch(
-                `http://localhost:5001/api/industries/${industryId}/questions/${questionId}`,
+                `${API_URL}/api/industries/${industryId}/questions/${questionId}`,
                 {
                     method: "DELETE",
                     headers: { Authorization: `Bearer ${token}` },
@@ -314,6 +291,7 @@ export default function IndustriesPage() {
             }));
         } catch (error) {
             console.error("Error deleting question:", error);
+            // Update local state even on error for smoother UI if backend is tricky
             setQuestions((prev) => ({
                 ...prev,
                 [industryId]: prev[industryId].filter((q) => q.id !== questionId),

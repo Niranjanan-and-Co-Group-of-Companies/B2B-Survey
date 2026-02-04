@@ -70,32 +70,34 @@ export default function SurveyDetailPage() {
     const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
     useEffect(() => {
+        const fetchSurvey = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+                const response = await fetch(`${API_URL}/api/surveys/${params.id}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await response.json();
+                if (data.success) {
+                    setSurvey(data.data);
+                }
+            } catch (error) {
+                console.error("Error fetching survey:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         fetchSurvey();
         fetchPhotos();
     }, [params.id]);
-
-    const fetchSurvey = async () => {
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:5001/api/surveys/${params.id}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await response.json();
-            if (data.success) {
-                setSurvey(data.data);
-            }
-        } catch (error) {
-            console.error("Error fetching survey:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const fetchPhotos = async () => {
         setPhotosLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:5001/api/surveys/${params.id}/photos`, {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/surveys/${params.id}/photos`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await response.json();
@@ -113,7 +115,8 @@ export default function SurveyDetailPage() {
         setUpdating(true);
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:5001/api/surveys/${params.id}/status`, {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/surveys/${params.id}/status`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",

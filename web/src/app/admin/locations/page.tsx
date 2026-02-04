@@ -37,7 +37,8 @@ export default function LocationsPage() {
     const fetchLocations = async () => {
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:5001/api/surveys?limit=1000`, {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+            const response = await fetch(`${API_URL}/api/surveys?limit=1000`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await response.json();
