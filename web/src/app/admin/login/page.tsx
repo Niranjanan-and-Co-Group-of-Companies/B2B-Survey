@@ -111,12 +111,7 @@ export default function AdminLoginPage() {
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-6 border-t border-[var(--border)] text-center text-sm text-[var(--text-muted)]">
-                        <p>Demo credentials:</p>
-                        <p className="mt-1">
-                            <strong>admin@b2bsurvey.com</strong> / <strong>admin123</strong>
-                        </p>
-                    </div>
+
                 </div>
             </div>
         </main>
