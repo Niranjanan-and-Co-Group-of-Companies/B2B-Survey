@@ -176,6 +176,7 @@ export default function SurveyDetailPage() {
     return (
         <div className="p-6 lg:p-8 max-w-6xl mx-auto">
             {/* Header */}
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">
                     <Link
@@ -224,6 +225,33 @@ export default function SurveyDetailPage() {
                             </button>
                         </>
                     )}
+                    <button
+                        onClick={async () => {
+                            if (confirm("Are you sure you want to delete this survey? This action cannot be undone.")) {
+                                setUpdating(true);
+                                try {
+                                    const token = localStorage.getItem("token");
+                                    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+                                    const response = await fetch(`${API_URL}/api/surveys/${params.id}`, {
+                                        method: "DELETE",
+                                        headers: { Authorization: `Bearer ${token}` },
+                                    });
+                                    if (response.ok) {
+                                        router.push("/admin/surveys");
+                                    }
+                                } catch (error) {
+                                    console.error("Error deleting survey:", error);
+                                } finally {
+                                    setUpdating(false);
+                                }
+                            }
+                        }}
+                        disabled={updating}
+                        className="btn btn-outline text-gray-500 hover:text-red-600 hover:bg-red-50 flex items-center gap-2 ml-2"
+                        title="Delete Survey"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
                 </div>
             </div>
 
