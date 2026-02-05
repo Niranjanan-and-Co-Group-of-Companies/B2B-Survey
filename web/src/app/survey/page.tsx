@@ -971,7 +971,7 @@ export default function SurveyPage() {
                     {step < totalSteps ? (
                         <button
                             onClick={() => {
-                                if (step === 1 && !formData.subCategory && subCategories[formData.industry]?.length === 0) {
+                                if (step === 1 && !formData.subCategory && availableSubCategories.length === 0) {
                                     updateField("subCategory", "general");
                                 }
                                 setStep((s) => Math.min(totalSteps, s + 1));
