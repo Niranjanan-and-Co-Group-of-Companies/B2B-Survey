@@ -447,7 +447,7 @@ export default function SurveyPage() {
                 {step === 2 && (
                     <div className="animate-fadeIn">
                         <h1 className="text-3xl font-bold mb-2 text-[var(--text-primary)]">Business Information</h1>
-                        <p className="text-[var(--text-secondary)] mb-8">Tell us about your {selectedIndustry?.displayName}</p>
+                        <p className="text-[var(--text-secondary)] mb-8">Tell us about your {selectedIndustry?.display_name}</p>
 
                         <div className="space-y-6">
                             <div>
