@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/db-server';
+import { supabase, supabaseAdmin } from '@/lib/db-server';
 import { getUser, unauthorized } from '@/lib/auth-server';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         const { id } = await params;
         const { display_name, icon, description, is_active } = await req.json();
 
-        const { data: industry, error } = await supabase
+        const { data: industry, error } = await supabaseAdmin
             .from('industries')
             .update({ display_name, icon, description, is_active })
             .eq('id', id)
@@ -55,7 +55,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     try {
         const { id } = await params;
-        const { error } = await supabase
+
+        // Manually cascade delete related records to avoid Foreign Key constraints
+        // 1. Delete Surveys
+        await supabaseAdmin.from('surveys').delete().eq('industry_id', id);
+        // 2. Delete Questions
+        await supabaseAdmin.from('industry_questions').delete().eq('industry_id', id);
+        // 3. Delete Sub-categories
+        await supabaseAdmin.from('sub_categories').delete().eq('industry_id', id);
+
+        // 4. Finally Delete Industry
+        const { error } = await supabaseAdmin
             .from('industries')
             .delete()
             .eq('id', id);

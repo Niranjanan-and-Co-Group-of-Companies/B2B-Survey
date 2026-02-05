@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/db-server';
+import { supabase, supabaseAdmin } from '@/lib/db-server';
 import { getUser, unauthorized } from '@/lib/auth-server';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -31,7 +31,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     try {
         const { id } = await params;
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
             .from('surveys')
             .delete()
             .eq('id', id);

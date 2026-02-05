@@ -9,8 +9,19 @@ if (!supabaseUrl || !supabaseKey) {
     throw new Error('Missing Supabase URL or Key env variables');
 }
 
+
 export const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
         persistSession: false,
     }
 });
+
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+export const supabaseAdmin = supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+            persistSession: false,
+        }
+    })
+    : supabase;

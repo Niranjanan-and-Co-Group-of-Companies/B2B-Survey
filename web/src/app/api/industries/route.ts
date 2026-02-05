@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/db-server';
+import { supabase, supabaseAdmin } from '@/lib/db-server';
 import { getUser, unauthorized } from '@/lib/auth-server';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     try {
         const { industry_key, display_name, icon, description, is_active } = await req.json();
 
-        const { data: industry, error } = await supabase
+        const { data: industry, error } = await supabaseAdmin
+
             .from('industries')
             .insert([{ industry_key, display_name, icon, description, is_active }])
             .select()
