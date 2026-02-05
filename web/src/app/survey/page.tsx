@@ -840,7 +840,7 @@ export default function SurveyPage() {
                 {/* Step 5: Industry Specific - Now Dynamic! */}
                 {step === 5 && (
                     <div className="animate-fadeIn">
-                        <h1 className="text-3xl font-bold mb-2 text-[var(--text-primary)]">{selectedIndustry?.displayName} Details</h1>
+                        <h1 className="text-3xl font-bold mb-2 text-[var(--text-primary)]">{selectedIndustry?.display_name} Details</h1>
                         <p className="text-[var(--text-secondary)] mb-8">Industry-specific information</p>
 
                         <div className="space-y-6">
