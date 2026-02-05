@@ -1,7 +1,35 @@
+"use client";
+
 import Link from "next/link";
 import { ClipboardList, BarChart3, Building2, TrendingUp, Users, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
+
+interface Industry {
+  id: string;
+  display_name: string;
+  icon: string;
+  industry_key: string;
+}
 
 export default function Home() {
+  const [industries, setIndustries] = useState<Industry[]>([]);
+
+  useEffect(() => {
+    const fetchIndustries = async () => {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+        const res = await fetch(`${API_URL}/api/industries`);
+        const data = await res.json();
+        if (data.success) {
+          setIndustries(data.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch industries:", error);
+      }
+    };
+    fetchIndustries();
+  }, []);
+
   return (
     <main className="min-h-screen">
       {/* Hero Section */}
@@ -45,7 +73,7 @@ export default function Home() {
           {/* Stats */}
           <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
-              { label: "Industries Covered", value: "17+" },
+              { label: "Industries Covered", value: `${industries.length}+` },
               { label: "Questions Tailored", value: "100+" },
               { label: "Minutes to Complete", value: "5-10" },
               { label: "Data Security", value: "100%" },
@@ -114,26 +142,13 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {[
-              { icon: "🏨", name: "Hotels" },
-              { icon: "🍽️", name: "Restaurants" },
-              { icon: "🏥", name: "Hospitals" },
-              { icon: "🩺", name: "Clinics" },
-              { icon: "🏫", name: "Schools" },
-              { icon: "🎓", name: "Colleges" },
-              { icon: "💒", name: "Wedding Planners" },
-              { icon: "🎪", name: "Events" },
-              { icon: "🔧", name: "Workshops" },
-              { icon: "💇", name: "Salons" },
-              { icon: "🏋️", name: "Gyms" },
-              { icon: "🏢", name: "Offices" },
-            ].map((industry) => (
+            {industries.map((industry) => (
               <div
-                key={industry.name}
+                key={industry.industry_key}
                 className="bg-[var(--background)] rounded-xl p-4 text-center hover:shadow-lg transition-all cursor-pointer hover:-translate-y-1"
               >
                 <div className="text-3xl mb-2">{industry.icon}</div>
-                <div className="text-sm font-medium text-[var(--text-secondary)]">{industry.name}</div>
+                <div className="text-sm font-medium text-[var(--text-primary)]">{industry.display_name}</div>
               </div>
             ))}
           </div>

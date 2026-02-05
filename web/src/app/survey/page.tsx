@@ -5,68 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, MapPin, CheckCircle, Loader2, Camera, X, Image as ImageIcon, RefreshCw, AlertCircle } from "lucide-react";
 
-// Mock industries data (will be fetched from API)
-const mockIndustries = [
-    { industryKey: "hotel_with_rooms", displayName: "Hotel (With Rooms)", icon: "🏨", description: "Hotels and resorts with guest rooms" },
-    { industryKey: "hotel_without_rooms", displayName: "Restaurant", icon: "🍽️", description: "Restaurants and dining establishments" },
-    { industryKey: "hospital", displayName: "Hospital", icon: "🏥", description: "Hospitals and medical facilities" },
-    { industryKey: "clinic_with_beds", displayName: "Clinic (With Beds)", icon: "🩺", description: "Clinics with inpatient facilities" },
-    { industryKey: "clinic_without_beds", displayName: "Clinic (OPD Only)", icon: "👨‍⚕️", description: "Outpatient clinics" },
-    { industryKey: "school", displayName: "School", icon: "🏫", description: "K-12 educational institutions" },
-    { industryKey: "college", displayName: "College/University", icon: "🎓", description: "Higher education institutions" },
-    { industryKey: "coaching_center", displayName: "Coaching Center", icon: "📚", description: "Coaching and tuition centers" },
-    { industryKey: "playschool", displayName: "Play School/Day Care", icon: "🧒", description: "Pre-schools and daycare" },
-    { industryKey: "wedding_planner", displayName: "Wedding Planner", icon: "💒", description: "Wedding planning services" },
-    { industryKey: "event_management", displayName: "Event Management", icon: "🎪", description: "Corporate and social events" },
-    { industryKey: "tent_house", displayName: "Tent House/Mandap", icon: "⛺", description: "Tent and mandap services" },
-    { industryKey: "workshop", displayName: "Workshop/Garage", icon: "🔧", description: "Vehicle repair workshops" },
-    { industryKey: "car_wash", displayName: "Car Wash", icon: "🚗", description: "Vehicle washing services" },
-    { industryKey: "salon", displayName: "Salon", icon: "💇", description: "Hair and beauty salons" },
-    { industryKey: "gym", displayName: "Gym/Fitness", icon: "🏋️", description: "Gyms and fitness centers" },
-    { industryKey: "retail_grocery", displayName: "Grocery Store", icon: "🛒", description: "Grocery and general stores" },
-    { industryKey: "bakery", displayName: "Bakery", icon: "🥖", description: "Bakeries and confectioneries" },
-    { industryKey: "corporate_office", displayName: "Corporate Office", icon: "🏢", description: "Offices and workspaces" },
-    { industryKey: "religious_place", displayName: "Religious Place", icon: "🛕", description: "Temples, churches, mosques" },
-];
+// Mock industries removed - now fetching from API
+interface SubCategory {
+    id: string;
+    category_key: string;
+    display_name: string;
+}
 
-const subCategories: Record<string, { key: string; displayName: string }[]> = {
-    hotel_with_rooms: [
-        { key: "luxury", displayName: "Luxury Hotel" },
-        { key: "budget", displayName: "Budget Hotel" },
-        { key: "boutique", displayName: "Boutique Hotel" },
-        { key: "resort", displayName: "Resort" },
-    ],
-    hotel_without_rooms: [
-        { key: "fine_dining", displayName: "Fine Dining" },
-        { key: "casual", displayName: "Casual Dining" },
-        { key: "fast_food", displayName: "Fast Food" },
-        { key: "cloud_kitchen", displayName: "Cloud Kitchen" },
-        { key: "cafe", displayName: "Cafe/Coffee Shop" },
-    ],
-    hospital: [
-        { key: "multispecialty", displayName: "Multi-specialty" },
-        { key: "single_specialty", displayName: "Single Specialty" },
-        { key: "government", displayName: "Government Hospital" },
-        { key: "private", displayName: "Private Hospital" },
-    ],
-    school: [
-        { key: "primary", displayName: "Primary School" },
-        { key: "secondary", displayName: "Secondary School" },
-        { key: "higher_secondary", displayName: "Higher Secondary" },
-        { key: "international", displayName: "International School" },
-    ],
-    salon: [
-        { key: "men", displayName: "Men's Salon" },
-        { key: "women", displayName: "Women's Salon" },
-        { key: "unisex", displayName: "Unisex Salon" },
-    ],
-    workshop: [
-        { key: "two_wheeler", displayName: "Two Wheeler" },
-        { key: "four_wheeler", displayName: "Four Wheeler" },
-        { key: "both", displayName: "Both" },
-        { key: "commercial", displayName: "Commercial Vehicles" },
-    ],
-};
+interface Industry {
+    id: string;
+    industry_key: string;
+    display_name: string;
+    icon: string;
+    description: string;
+    sub_categories: SubCategory[];
+}
 
 const painPointOptions = [
     { key: "high_prices", label: "High Prices" },
@@ -98,9 +51,31 @@ export default function SurveyPage() {
     const [industryQuestions, setIndustryQuestions] = useState<IndustryQuestion[]>([]);
     const [questionsLoading, setQuestionsLoading] = useState(false);
 
+    const [industries, setIndustries] = useState<Industry[]>([]);
+    const [loadingIndustries, setLoadingIndustries] = useState(true);
+
+    useEffect(() => {
+        const fetchIndustries = async () => {
+            try {
+                const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+                const res = await fetch(`${API_URL}/api/industries`);
+                const data = await res.json();
+                if (data.success) {
+                    setIndustries(data.data);
+                }
+            } catch (error) {
+                console.error("Error fetching industries:", error);
+            } finally {
+                setLoadingIndustries(false);
+            }
+        };
+        fetchIndustries();
+    }, []);
+
     const [formData, setFormData] = useState({
         // Step 1: Industry
         industry: "",
+        industryId: "", // Added to track UUID
         subCategory: "",
 
         // Step 2: Business Info
@@ -173,7 +148,7 @@ export default function SurveyPage() {
                 const res = await fetch(`${API_URL}/api/industries/${formData.industry}/questions`);
                 const data = await res.json();
                 if (data.success && data.data) {
-                    setIndustryQuestions(data.data);
+                    setIndustryQuestions(data.data.industry_questions || []);
                 } else {
                     setIndustryQuestions([]);
                 }
@@ -272,10 +247,13 @@ export default function SurveyPage() {
         setIsSubmitting(true);
 
         try {
+            const selectedIndustryObj = industries.find(i => i.industry_key === formData.industry);
+
             const surveyData = {
                 business: {
                     name: formData.businessName,
                     industry: formData.industry,
+                    industryId: selectedIndustryObj?.id, // Send UUID if available 
                     subCategory: formData.subCategory,
                     ownerName: formData.ownerName,
                     contactPhone: formData.contactPhone,
@@ -383,8 +361,8 @@ export default function SurveyPage() {
         }
     };
 
-    const selectedIndustry = mockIndustries.find((i) => i.industryKey === formData.industry);
-    const availableSubCategories = subCategories[formData.industry] || [];
+    const selectedIndustry = industries.find((i) => i.industry_key === formData.industry);
+    const availableSubCategories = selectedIndustry?.sub_categories || [];
 
     return (
         <main className="min-h-screen bg-[var(--background)]">
@@ -413,21 +391,27 @@ export default function SurveyPage() {
                         <h1 className="text-3xl font-bold mb-2 text-[var(--text-primary)]">Select Your Industry</h1>
                         <p className="text-[var(--text-secondary)] mb-8">Choose the industry that best describes your business</p>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-                            {mockIndustries.map((industry) => (
-                                <div
-                                    key={industry.industryKey}
-                                    onClick={() => {
-                                        updateField("industry", industry.industryKey);
-                                        updateField("subCategory", "");
-                                    }}
-                                    className={`industry-card ${formData.industry === industry.industryKey ? "selected" : ""}`}
-                                >
-                                    <div className="text-3xl mb-2">{industry.icon}</div>
-                                    <div className="font-medium text-sm text-[var(--text-primary)]">{industry.displayName}</div>
-                                </div>
-                            ))}
-                        </div>
+                        {loadingIndustries ? (
+                            <div className="p-12 flex justify-center">
+                                <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                                {industries.filter(i => i.industry_key).map((industry) => (
+                                    <div
+                                        key={industry.industry_key}
+                                        onClick={() => {
+                                            updateField("industry", industry.industry_key);
+                                            updateField("subCategory", "");
+                                        }}
+                                        className={`industry-card ${formData.industry === industry.industry_key ? "selected" : ""}`}
+                                    >
+                                        <div className="text-3xl mb-2">{industry.icon}</div>
+                                        <div className="font-medium text-sm text-[var(--text-primary)]">{industry.display_name}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         {formData.industry && availableSubCategories.length > 0 && (
                             <div className="animate-fadeIn">
@@ -435,21 +419,21 @@ export default function SurveyPage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     {availableSubCategories.map((sub) => (
                                         <button
-                                            key={sub.key}
-                                            onClick={() => updateField("subCategory", sub.key)}
-                                            className={`p-4 rounded-xl border-2 transition-all text-left ${formData.subCategory === sub.key
+                                            key={sub.category_key}
+                                            onClick={() => updateField("subCategory", sub.category_key)}
+                                            className={`p-4 rounded-xl border-2 transition-all text-left ${formData.subCategory === sub.category_key
                                                 ? "border-[var(--accent)] bg-[var(--accent)]/5"
                                                 : "border-[var(--border)] hover:border-[var(--accent)]/50"
                                                 }`}
                                         >
-                                            {sub.displayName}
+                                            {sub.display_name}
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {formData.industry && availableSubCategories.length === 0 && (
+                        {formData.industry && !loadingIndustries && availableSubCategories.length === 0 && (
                             <input
                                 type="hidden"
                                 value="general"
